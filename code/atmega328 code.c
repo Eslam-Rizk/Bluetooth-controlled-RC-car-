@@ -5,15 +5,27 @@
 #define LEFT_MOTOR_BACKWARD PB1
 #define RIGHT_MOTOR_FORWARD PB2
 #define RIGHT_MOTOR_BACKWARD PB3
+#define PWM_FREQ 5000 // PWM frequency in Hz
+#define PWM_MAX 255  // maximum duty cycle value
 
-void init_pwm() {
-    // Set timer 0 to fast PWM mode with non-inverted output
-    TCCR0A |= (1 << COM0A1) | (1 << COM0B1) | (1 << WGM01) | (1 << WGM00);
-    TCCR0B |= (1 << CS01);
+void init_pwm(void) {
+  // set up Timer/Counter1 for PWM generation on PB1 and PB2
+  TCCR1A |= (1 << COM1A1) | (1 << COM1B1) | (1 << WGM11);  // non-inverted PWM on OCR1A and OCR1B
+  TCCR1B |= (1 << WGM13) | (1 << WGM12) | (1 << CS11);  // Fast PWM, prescaler = 8
+  ICR1 = F_CPU / (PWM_FREQ * 8);  // set the PWM frequency
+  DDRB |= (1 << PB1) | (1 << PB2);  // set PB1 and PB2 as output
 
-    // Set timer 2 to fast PWM mode with non-inverted output
-    TCCR2A |= (1 << COM2A1) | (1 << COM2B1) | (1 << WGM21) | (1 << WGM20);
-    TCCR2B |= (1 << CS21);
+  // set up Timer/Counter2 for PWM generation on PB0 and PB3
+  TCCR2A |= (1 << COM2A1) | (1 << COM2B1) | (1 << WGM21) | (1 << WGM20);  // non-inverted PWM on OCR2A and OCR2B
+  TCCR2B |= (1 << CS21);  // Fast PWM, prescaler = 8
+  OCR2A = 0;  // set initial duty cycle to 0%
+  OCR2B = 0;
+  DDRB |= (1 << PB0) | (1 << PB3);  // set PB0 and PB3 as output
+}
+
+void set_pwm_duty_cycle(uint8_t duty1, uint8_t duty2) {
+  OCR1A = (duty1 * PWM_MAX) / 100;  // set the duty cycle as a percentage of the maximum for motor 1
+  OCR1B = (duty2 * PWM_MAX) / 100;  // set the duty cycle as a percentage of the maximum for motor 2
 }
 
 void init_uart() {
@@ -28,20 +40,16 @@ void init_uart() {
     UCSR0C |= (1 << UCSZ01) | (1 << UCSZ00);
 }
 
-void uart_send_byte(uint8_t data) {
-    // Wait for empty transmit buffer
-    while (!(UCSR0A & (1 << UDRE0)));
-
-    // Put data into buffer, sends the data
-    UDR0 = data;
-}
-
 int main() {
     // Set pins for motor control as output
     DDRB |= (1 << LEFT_MOTOR_FORWARD) | (1 << LEFT_MOTOR_BACKWARD) | (1 << RIGHT_MOTOR_FORWARD) | (1 << RIGHT_MOTOR_BACKWARD);
 
     // Initialize PWM for motor control
     init_pwm();
+    
+    // set duty cycle to 50% for both motors
+    set_pwm_duty_cycle(50, 50);
+    _delay_ms(1000);
 
     // Initialize UART for Bluetooth communication
     init_uart();
